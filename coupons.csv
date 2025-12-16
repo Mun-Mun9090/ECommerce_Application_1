@@ -1,0 +1,4 @@
+couponCode,discountType,discountValue,maxUses
+SAVE10,PERCENT,10,100
+FLAT500,FIXED,500,50
+WELCOME20,PERCENT,20,1
