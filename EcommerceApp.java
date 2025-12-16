@@ -8,6 +8,7 @@ public class EcommerceApp {
     public static void main(String[] args) {
         System.out.println("✅ Starting E-Commerce System...");
         Datamanager.loadData();
+        CartService.loadCart();   //  RESTORE CART
         System.out.println("✅ Data loaded!");
         runMenu();
     }
@@ -16,15 +17,13 @@ public class EcommerceApp {
         Scanner sc = new Scanner(System.in);
 
         while (true) {
-            int cartCount = CartService.cart.size();
-
             System.out.println();
             System.out.println("==============================");
             System.out.println("       E-COMMERCE SYSTEM");
             System.out.println("==============================");
             System.out.println("1. View Products");
             System.out.println("2. Add to Cart");
-            System.out.println("3. View Cart (" + cartCount + ")");
+            System.out.println("3. View Cart (" + CartService.cart.size() + ")");
             System.out.println("4. Checkout");
             System.out.println("5. Exit");
             System.out.print("Enter choice: ");
@@ -33,7 +32,7 @@ public class EcommerceApp {
             try {
                 ch = Integer.parseInt(sc.nextLine());
             } catch (Exception e) {
-                System.out.println("Invalid choice, try again.");
+                System.out.println("Invalid choice.");
                 continue;
             }
 
@@ -46,16 +45,14 @@ public class EcommerceApp {
                     System.out.println("Thank you for using E-Commerce System!");
                     return;
                 }
-                default -> System.out.println("Invalid choice, try again.");
+                default -> System.out.println("Invalid choice.");
             }
         }
     }
 
     private static void showProducts() {
-        System.out.println();
-        System.out.println("--------- PRODUCT LIST ---------");
-        for (Object o : Datamanager.products.values()) {
-            Item i = (Item) o;
+        System.out.println("\n--------- PRODUCT LIST ---------");
+        for (Item i : Datamanager.products.values()) {
             System.out.printf("ID: %-5s  %-15s  ₹%.2f  Stock: %d  [%s]%n",
                     i.itemId, i.name, i.price, i.stock, i.category);
         }
@@ -66,99 +63,78 @@ public class EcommerceApp {
         String id = sc.nextLine();
         System.out.print("Enter Quantity : ");
         int qty;
+
         try {
             qty = Integer.parseInt(sc.nextLine());
         } catch (Exception e) {
             System.out.println("Invalid quantity.");
             return;
         }
-        CartService.addToCart(id, qty);               // uses CartService.addToCart[file:2]
+
+        CartService.addToCart(id, qty);
     }
 
     private static void showCart() {
-        System.out.println();
         if (CartService.cart.isEmpty()) {
             System.out.println("Cart is empty.");
             return;
         }
-        System.out.println("------------- CART -------------");
+
+        System.out.println("\n------------- CART -------------");
         double subtotal = 0;
-        for (OrderItem oi : CartService.cart) {       // items in cart[file:2][file:3]
-            double itemTotal = oi.getSubtotal();      // price * qty[file:3]
-            subtotal += itemTotal;
-            System.out.printf("%-15s x %d  =  ₹%.2f%n",
-                    oi.item.name, oi.qty, itemTotal);
+
+        for (OrderItem oi : CartService.cart) {
+            double total = oi.getSubtotal();
+            subtotal += total;
+            System.out.printf("%-15s x %d  = ₹%.2f%n",
+                    oi.item.name, oi.qty, total);
         }
+
         System.out.printf("Subtotal: ₹%.2f%n", subtotal);
     }
 
     private static void checkout(Scanner sc) {
         if (CartService.cart.isEmpty()) {
-            System.out.println("Cart is empty. Add items first.");
+            System.out.println("Cart is empty.");
             return;
         }
 
-        // compute subtotal
         double subtotal = 0;
-        for (OrderItem oi : CartService.cart) {
+        for (OrderItem oi : CartService.cart)
             subtotal += oi.getSubtotal();
-        }
 
-        // coupon
         System.out.print("Enter coupon code (or press Enter to skip): ");
         String code = sc.nextLine().trim();
+
         double discount = code.isEmpty()
                 ? 0
-                : CartService.calculateDiscount(subtotal, code); // discount logic[file:2]
+                : CartService.calculateDiscount(subtotal, code);
 
-        double afterDiscount = subtotal - discount;
-        double tax = CartService.calculateTax(afterDiscount);    // tax logic[file:2]
-        double total = afterDiscount + tax;
+        double taxable = subtotal - discount;
+        double tax = CartService.calculateTax(taxable);
+        double total = taxable + tax;
 
-        // ---------- INVOICE ON CONSOLE ----------
-        System.out.println();
-        System.out.println("=========== INVOICE ===========");
-        System.out.printf("%-15s %-5s %-8s %-8s%n", "Item", "Qty", "Price", "Total");
-        System.out.println("----------------------------------------");
-
+        System.out.println("\n=========== INVOICE ===========");
         for (OrderItem oi : CartService.cart) {
-            double lineTotal = oi.getSubtotal();
-            System.out.printf("%-15s %-5d %-8.2f %-8.2f%n",
-                    oi.item.name, oi.qty, oi.item.price, lineTotal);
+            System.out.printf("%-15s x %d = ₹%.2f%n",
+                    oi.item.name, oi.qty, oi.getSubtotal());
         }
 
-        System.out.println("----------------------------------------");
+        System.out.println("------------------------------");
         System.out.printf("Subtotal : %.2f%n", subtotal);
         System.out.printf("Discount : -%.2f%n", discount);
         System.out.printf("Tax      : %.2f%n", tax);
         System.out.printf("TOTAL    : %.2f%n", total);
-        System.out.println("===============================");
 
-        // ---------- INVOICE TO FILE ----------
+        // Save invoice
         try (PrintWriter pw = new PrintWriter(new FileWriter("invoice.txt"))) {
-            pw.println("=========== INVOICE ===========");
-            pw.printf("%-15s %-5s %-8s %-8s%n", "Item", "Qty", "Price", "Total");
-            pw.println("----------------------------------------");
-
-            for (OrderItem oi : CartService.cart) {
-                double lineTotal = oi.getSubtotal();
-                pw.printf("%-15s %-5d %-8.2f %-8.2f%n",
-                        oi.item.name, oi.qty, oi.item.price, lineTotal);
-            }
-
-            pw.println("----------------------------------------");
-            pw.printf("Subtotal : %.2f%n", subtotal);
-            pw.printf("Discount : -%.2f%n", discount);
-            pw.printf("Tax      : %.2f%n", tax);
-            pw.printf("TOTAL    : %.2f%n", total);
-            pw.println("===============================");
-
-            System.out.println("Invoice saved to invoice.txt");
+            pw.println("TOTAL : " + total);
         } catch (IOException e) {
-            System.out.println("Error writing invoice file: " + e.getMessage());
+            System.out.println("Invoice file error");
         }
 
-        // optional: clear cart after checkout
+        // Clear cart after checkout
         CartService.cart.clear();
+        CartService.saveCart();  // 🔥 clear cart file too
     }
 }
